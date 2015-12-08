@@ -1,3 +1,8 @@
+/* 
+Lab11_T02 Modify the original code to print Capital Letters when small letters are entered and vice
+versa on the hyperterm/serialchart.
+*/
+
 #define TEMP_ADDR  0x4F		// Address for Temp Sensor
 
 // Define needed for pin_map.h
