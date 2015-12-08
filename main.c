@@ -126,8 +126,8 @@ void DeviceInit(void) {
  * Set message on on OLED
 */
 void OrbitSetOled() {
-	char *name = "Martin Jaime";
-	char *label = "CpE403:Lab11-T03";
+	char *name = "Nikita";
+	char *label = "CpE603:Lab11-T03";
 	char *temp_label = "Nums 0-100:";
 
 	OrbitOledSetCursor(0, 0);
