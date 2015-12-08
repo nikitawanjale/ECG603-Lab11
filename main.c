@@ -1,6 +1,5 @@
 /* 
-Lab11_T02 Modify the original code to print Capital Letters when small letters are entered and vice
-versa on the hyperterm/serialchart.
+Lab11_T03 Change the code to display the values from 0 to 100 on the OLED.
 */
 
 #define TEMP_ADDR  0x4F		// Address for Temp Sensor
@@ -10,6 +9,7 @@ versa on the hyperterm/serialchart.
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "LaunchPad.h"
 #include "OrbitBoosterPackDefs.h"
@@ -21,31 +21,23 @@ versa on the hyperterm/serialchart.
 
 #include "delay.h"
 
-#include "inc/hw_i2c.h"
-#include "driverlib/i2c.h"
-
 void DeviceInit();
 void OrbitSetOled();
+void display_counter();
+void OLEDprint_uChar(unsigned char);
 
-void OrbitDemo2();
-void Read_temp(unsigned char*, char);	// Read Temperature sensor
-float read_float_temp();		// Read Temperature sensor
-char* ftos(float, char);		// convert float to string (char*)
-void init_i2c();
 
 int main() {
 
 	DeviceInit();
 
- 	init_i2c(); // Initiate i2c
-
 	while(1) {
-		OrbitDemo2();
+		display_counter();
 	}
 }
 
 /*
-/***	DeviceInit
+ *	DeviceInit
 */
 void DeviceInit(void) {
 
@@ -130,13 +122,13 @@ void DeviceInit(void) {
 }
 
 /*
-/***	OrbitSetOled
+ *	OrbitSetOled
  * Set message on on OLED
 */
 void OrbitSetOled() {
 	char *name = "Martin Jaime";
-	char *label = "CpE403:Lab11-T02";
-	char *temp_label = "Temp:";
+	char *label = "CpE403:Lab11-T03";
+	char *temp_label = "Nums 0-100:";
 
 	OrbitOledSetCursor(0, 0);
 	OrbitOledPutString(name);
@@ -151,114 +143,51 @@ void OrbitSetOled() {
 	OrbitOledPutString(temp_label);
 }
 
-/* ------------------------------------------------------------ */
-/***	OrbitDemo
+/*
+ *	OrbitDemo
 */
-void OrbitDemo2() {
-	float 	temp;
-	char	temp_str[5];
+void display_counter() {
+	static unsigned char counter = 0;
 
-	/*
-	 * Read temperature and display.
-	 */
+	OrbitOledSetCursor(11, 4);
+	OLEDprint_uChar(counter);
+	if (counter == 100)
+		SysCtlDelay(9000000); // Delay
 
-	Read_temp(temp_str, 'C');
 
-	OrbitOledSetCursor(8, 4);
-	OrbitOledPutString(temp_str);
-
-	SysCtlDelay(20000000); // Delay
-
-	Read_temp(temp_str, 'F');
-
-	OrbitOledSetCursor(8, 4);
-	OrbitOledPutString(temp_str);
-
-	SysCtlDelay(20000000); // Delay
-
+	counter++;
+	if (counter > 100)
+	{
+		OrbitOledSetCursor(11, 4);
+		OrbitOledPutString("   ");
+		counter = 0;
+	}
+	SysCtlDelay(900000); // Delay
 }
 
-void Read_temp(unsigned char *data, char t){	// Read Temperature sensor
-	unsigned char temp[2];				//  storage for data
-	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);	// Start condition
-	SysCtlDelay(20000);													// Delay
-	temp[0] = I2CMasterDataGet(I2C0_BASE);								// Read first char
-	SysCtlDelay(20000);													// Delay
-	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);		// Push second Char
-	SysCtlDelay(20000);													// Delay
-	temp[1] = I2CMasterDataGet(I2C0_BASE);								// Read second char
-	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);	// Stop Condition
+void OLEDprint_uChar(unsigned char value){
+	char buffer[10];
+	int i = 0; // iterator
+	int temp = value;
 
-	if(t == 'F')
-		temp[0] = (unsigned char)(temp[0]*(9.0/5) + 32);
+	if (value == 0)
+	{
+		OrbitOledPutString("0");
+		return;
+	}
 
-	data[0] = (temp[0] / 10) + 0x30;									// convert 10 place to ASCII
-	data[1] = (temp[0] - ((temp[0] / 10)*10)) + 0x30;					// Convert 1's place to ASCII
-	data[2] = t;
-	data[3] = '\0';
-}
-
-float read_float_temp(){	// Read Temperature sensor
-	unsigned char temp[2];	//  storage for data
-	float value;
-
-	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);	// Start condition
-	SysCtlDelay(20000);													// Delay
-	temp[0] = I2CMasterDataGet(I2C0_BASE);								// Read first char
-	SysCtlDelay(20000);													// Delay
-	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);		// Push second Char
-	SysCtlDelay(20000);													// Delay
-	temp[1] = I2CMasterDataGet(I2C0_BASE);								// Read second char
-	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);	// Stop Condition
-
-	value = temp[0];
-
-	if (temp[1] != 128)
-		value += 0.5;
-	return value;
-}
-
-void init_i2c()
-{
-	SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);		// Enable I2C hardware
-
-	GPIOPinConfigure(GPIO_PB3_I2C0SDA);				// Configure GPIO pin for I2C Data line
-	GPIOPinConfigure(GPIO_PB2_I2C0SCL);				// Configure GPIO Pin for I2C clock line
-
-	GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_2 | GPIO_PIN_3); 	// Set Pin Type
-
-	GPIOPadConfigSet(GPIO_PORTB_BASE, GPIO_PIN_2, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD);// SDA MUST BE STD
-	GPIOPadConfigSet(GPIO_PORTB_BASE, GPIO_PIN_3, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_OD);	// SCL MUST BE OPEN DRAIN
-	I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false); 	// The False sets the controller to 100kHz communication
-	I2CMasterSlaveAddrSet(I2C0_BASE, TEMP_ADDR, true);  		// false means transmit
-}
-
-char* ftos(float fVal, char t)
-// convert float to char*. t must be 'F' or 'C'
-{
-    char result[10];
-    int dVal, dec, i;
-
-    if (t == 'F') // if type is Farenheit, convert.
-    	fVal = fVal*( 9 / 5 ) + 32;
-
-    fVal += 0.005; // round to nearest hundedth.
-
-    dVal = fVal;
-    dec = (int)(fVal * 100) % 100;
-
-    result[0] = (dec % 10) + '0';
-    result[1] = (dec / 10) + '0';
-    result[2] = '.';
-
-    while (dVal > 0)
-    for(i = 3; i <= 4; i++)
-    {
-        result[i] = (dVal % 10) + '0';
-        dVal /= 10;
-    }
-    result[6] = t;
-    result[7] = '\0';
-
-    return result;
+	// Convert to string
+	while(temp != 0) // count the number of digits
+	{
+		i++;
+		temp /= 10;
+	}
+	buffer[i] = '\0';
+	i--;
+	for(; i >= 0; i--) // convert digits to chars, and store in buffer
+	{
+		buffer[i] = value % 10 + '0';
+		value /= 10;
+	}
+	OrbitOledPutString(buffer);
 }
