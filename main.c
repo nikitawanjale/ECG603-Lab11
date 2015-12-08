@@ -1,5 +1,11 @@
+#define TEMP_ADDR  0x4F		// Address for Temp Sensor
+
+// Define needed for pin_map.h
+#define PART_TM4C123GH6PM
+
 #include <stdint.h>
 #include <stdbool.h>
+
 #include "LaunchPad.h"
 #include "OrbitBoosterPackDefs.h"
 
@@ -10,53 +16,31 @@
 
 #include "delay.h"
 
+#include "inc/hw_i2c.h"
+#include "driverlib/i2c.h"
+
 void DeviceInit();
 void OrbitSetOled();
-void OrbitDemo();
-void Read_temp(unsigned char*);	// Read Temperature sensor
 
-/* ------------------------------------------------------------ */
-/***	main()
-**
-**	Parameters:
-**		none
-**
-**	Return Value:
-**		none
-**
-**	Errors:
-**		none
-**
-**	Description:
-**		Main program loop
-*/
+void OrbitDemo2();
+void Read_temp(unsigned char*, char);	// Read Temperature sensor
+float read_float_temp();		// Read Temperature sensor
+char* ftos(float, char);		// convert float to string (char*)
+void init_i2c();
+
 int main() {
 
 	DeviceInit();
 
+ 	init_i2c(); // Initiate i2c
+
 	while(1) {
-
-		OrbitDemo();
-
+		OrbitDemo2();
 	}
-
-	//return 0;
 }
 
-/* ------------------------------------------------------------ */
+/*
 /***	DeviceInit
-**
-**	Parameters:
-**		none
-**
-**	Return Value:
-**		none
-**
-**	Errors:
-**		none
-**
-**	Description:
-**		Initialize I2C Communication, and GPIO
 */
 void DeviceInit(void) {
 
@@ -140,128 +124,136 @@ void DeviceInit(void) {
 
 }
 
-/* ------------------------------------------------------------ */
+/*
 /***	OrbitSetOled
-**
-**	Parameters:
-**		none
-**
-**	Return Value:
-**		none
-**
-**	Errors:
-**		none
-**
-**	Description:
-**		Set the OLED for Analog Demo
-**
+ * Set message on on OLED
 */
 void OrbitSetOled() {
-
-	char szAnalog[] = {'A', 'n', 'a', 'l', 'o', 'g', ':', ' ', '\0'};
-	char szDemo1[]	= {'O', 'r', 'b', 'i', 't', ' ', 'D', 'e', 'm', 'o', '!', '\0'};
-	char szDemo2[]	= {'B', 'y', ' ', 'D', 'i', 'g', 'i', 'l', 'e', 'n', 't', '\0'};
+	char *name = "Martin Jaime";
+	char *label = "CpE403:Lab11-T02";
+	char *temp_label = "Temp:";
 
 	OrbitOledSetCursor(0, 0);
-	OrbitOledPutString(szDemo1);
+	OrbitOledPutString(name);
 
 	OrbitOledSetCursor(0, 1);
-	OrbitOledPutString(szDemo2);
+	OrbitOledPutString(label);
 
 	OrbitOledMoveTo(0,19);
 	OrbitOledLineTo(127, 19);
 
 	OrbitOledSetCursor(0, 4);
-	OrbitOledPutString(szAnalog);
-
+	OrbitOledPutString(temp_label);
 }
 
 /* ------------------------------------------------------------ */
 /***	OrbitDemo
-**
-**	Parameters:
-**		none
-**
-**	Return Value:
-**		none
-**
-**	Errors:
-**		none
-**
-**	Description:
-**		Switches and buttons turn on LEDs, and the ADC reading
-**		(altered with the potentiometer, VR1) is continuously
-**		output to the OLED.
 */
-void OrbitDemo() {
-
-	uint32_t	ulAIN0;
-	long 			lSwt1;
-	long 			lSwt2;
-	long 			lBtn1;
-	long 			lBtn2;
-	char			szAIN[6] = {0};
-	char			cMSB = 0x00;
-	char			cMIDB = 0x00;
-	char			cLSB = 0x00;
-
-	/* Check SWT and BTN states and update LEDs
-	 *
-	 */
-	lSwt1 = GPIOPinRead(SWT1Port, SWT1);
-	lSwt2 = GPIOPinRead(SWT2Port, SWT2);
-	lBtn1 = GPIOPinRead(BTN1Port, BTN1);
-	lBtn2 = GPIOPinRead(BTN2Port, BTN2);
-
-	if(lSwt1 == SWT1) {
-		GPIOPinWrite(LED3Port, LED3, LED3);
-	}
-	else {
-		GPIOPinWrite(LED3Port, LED3, LOW);
-	}
-	if(lSwt2 == SWT2) {
-		GPIOPinWrite(LED4Port, LED4, LED4);
-	}
-	else {
-		GPIOPinWrite(LED4Port, LED4, LOW);
-	}
-	if(lBtn1 == BTN1) {
-		GPIOPinWrite(LED1Port, LED1, LED1);
-	}
-	else {
-		GPIOPinWrite(LED1Port, LED1, LOW);
-	}
-	if(lBtn2 == BTN2) {
-		GPIOPinWrite(LED2Port, LED2, LED2);
-	}
-	else {
-		GPIOPinWrite(LED2Port, LED2, LOW);
-	}
+void OrbitDemo2() {
+	float 	temp;
+	char	temp_str[5];
 
 	/*
-	 * Initiate ADC Conversion and update the OLED
+	 * Read temperature and display.
 	 */
-	ADCProcessorTrigger(ADC0_BASE, 0);
 
-	while(!ADCIntStatus(ADC0_BASE, 0, false));
-
-	ADCSequenceDataGet(ADC0_BASE, 0, &ulAIN0);
-
-	/*
-	 * Process data
-	 */
-	cMSB = (0xF00 & ulAIN0) >> 8;
-	cMIDB = (0x0F0 & ulAIN0) >> 4;
-	cLSB = (0x00F & ulAIN0);
-
-	szAIN[0] = '0';
-	szAIN[1] = 'x';
-	szAIN[2] = (cMSB > 9) ? 'A' + (cMSB - 10) : '0' + cMSB;
-	szAIN[3] = (cMIDB > 9) ? 'A' + (cMIDB - 10) : '0' + cMIDB;
-	szAIN[4] = (cLSB > 9) ? 'A' + (cLSB - 10) : '0' + cLSB;
-	szAIN[5] = '\0';
+	Read_temp(temp_str, 'C');
 
 	OrbitOledSetCursor(8, 4);
-	OrbitOledPutString(szAIN);
+	OrbitOledPutString(temp_str);
 
+	SysCtlDelay(20000000); // Delay
+
+	Read_temp(temp_str, 'F');
+
+	OrbitOledSetCursor(8, 4);
+	OrbitOledPutString(temp_str);
+
+	SysCtlDelay(20000000); // Delay
+
+}
+
+void Read_temp(unsigned char *data, char t){	// Read Temperature sensor
+	unsigned char temp[2];				//  storage for data
+	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);	// Start condition
+	SysCtlDelay(20000);													// Delay
+	temp[0] = I2CMasterDataGet(I2C0_BASE);								// Read first char
+	SysCtlDelay(20000);													// Delay
+	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);		// Push second Char
+	SysCtlDelay(20000);													// Delay
+	temp[1] = I2CMasterDataGet(I2C0_BASE);								// Read second char
+	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);	// Stop Condition
+
+	if(t == 'F')
+		temp[0] = (unsigned char)(temp[0]*(9.0/5) + 32);
+
+	data[0] = (temp[0] / 10) + 0x30;									// convert 10 place to ASCII
+	data[1] = (temp[0] - ((temp[0] / 10)*10)) + 0x30;					// Convert 1's place to ASCII
+	data[2] = t;
+	data[3] = '\0';
+}
+
+float read_float_temp(){	// Read Temperature sensor
+	unsigned char temp[2];	//  storage for data
+	float value;
+
+	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);	// Start condition
+	SysCtlDelay(20000);													// Delay
+	temp[0] = I2CMasterDataGet(I2C0_BASE);								// Read first char
+	SysCtlDelay(20000);													// Delay
+	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);		// Push second Char
+	SysCtlDelay(20000);													// Delay
+	temp[1] = I2CMasterDataGet(I2C0_BASE);								// Read second char
+	I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);	// Stop Condition
+
+	value = temp[0];
+
+	if (temp[1] != 128)
+		value += 0.5;
+	return value;
+}
+
+void init_i2c()
+{
+	SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);		// Enable I2C hardware
+
+	GPIOPinConfigure(GPIO_PB3_I2C0SDA);				// Configure GPIO pin for I2C Data line
+	GPIOPinConfigure(GPIO_PB2_I2C0SCL);				// Configure GPIO Pin for I2C clock line
+
+	GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_2 | GPIO_PIN_3); 	// Set Pin Type
+
+	GPIOPadConfigSet(GPIO_PORTB_BASE, GPIO_PIN_2, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD);// SDA MUST BE STD
+	GPIOPadConfigSet(GPIO_PORTB_BASE, GPIO_PIN_3, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_OD);	// SCL MUST BE OPEN DRAIN
+	I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false); 	// The False sets the controller to 100kHz communication
+	I2CMasterSlaveAddrSet(I2C0_BASE, TEMP_ADDR, true);  		// false means transmit
+}
+
+char* ftos(float fVal, char t)
+// convert float to char*. t must be 'F' or 'C'
+{
+    char result[10];
+    int dVal, dec, i;
+
+    if (t == 'F') // if type is Farenheit, convert.
+    	fVal = fVal*( 9 / 5 ) + 32;
+
+    fVal += 0.005; // round to nearest hundedth.
+
+    dVal = fVal;
+    dec = (int)(fVal * 100) % 100;
+
+    result[0] = (dec % 10) + '0';
+    result[1] = (dec / 10) + '0';
+    result[2] = '.';
+
+    while (dVal > 0)
+    for(i = 3; i <= 4; i++)
+    {
+        result[i] = (dVal % 10) + '0';
+        dVal /= 10;
+    }
+    result[6] = t;
+    result[7] = '\0';
+
+    return result;
 }
